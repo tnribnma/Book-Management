@@ -3,111 +3,85 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"net/http"
-	"os"
 
+	"book-management/config"
 	"book-management/utils"
 )
 
 type AuthHandler struct {
-	DB *sql.DB
+	DB  *sql.DB
+	JWT *config.JWTConfig
 }
 
-func NewAuthHandler(db *sql.DB) *AuthHandler {
-	return &AuthHandler{DB: db}
+func NewAuthHandler(db *sql.DB, jwt *config.JWTConfig) *AuthHandler {
+	return &AuthHandler{DB: db, JWT: jwt}
 }
 
-type registerReq struct {
+type authRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req registerReq
-
+	var req authRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	hash, err := utils.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "hash error", http.StatusInternalServerError)
+		Error(w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
 
 	var id int64
-
 	err = h.DB.QueryRow(
-		`INSERT INTO users (email, password_hash)
-		 VALUES ($1, $2)
-		 RETURNING id`,
-		req.Email,
-		hash,
+		`INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id`,
+		req.Email, hash,
 	).Scan(&id)
 
 	if err != nil {
-		log.Println("Register Error:", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		Error(w, http.StatusBadRequest, "email already exists")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewEncoder(w).Encode(map[string]any{
-		"id":    id,
-		"email": req.Email,
-	})
+	JSON(w, http.StatusCreated, map[string]any{"id": id, "email": req.Email})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req registerReq
-
+	var req authRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	var (
-		id   int64
-		hash string
-	)
+	var user struct {
+		ID           int64
+		PasswordHash string
+	}
 
 	err := h.DB.QueryRow(
-		`SELECT id, password_hash
-		 FROM users
-		 WHERE email = $1`,
+		`SELECT id, password_hash FROM users WHERE email = $1`,
 		req.Email,
-	).Scan(&id, &hash)
+	).Scan(&user.ID, &user.PasswordHash)
 
 	if err != nil {
-		log.Println("Login Error:", err)
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
-	if err := utils.CheckPassword(hash, req.Password); err != nil {
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+	if err := utils.CheckPassword(user.PasswordHash, req.Password); err != nil {
+		Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		http.Error(w, "JWT_SECRET not set", http.StatusInternalServerError)
-		return
-	}
-
-	token, err := utils.CreateToken(id, secret)
+	token, err := utils.CreateToken(user.ID)
 	if err != nil {
-		log.Println("Token Error:", err)
-		http.Error(w, "token error", http.StatusInternalServerError)
+		Error(w, http.StatusInternalServerError, "failed to generate token")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewEncoder(w).Encode(map[string]any{
-		"token": token,
-	})
+	JSON(w, http.StatusOK, map[string]any{"token": token})
 }
