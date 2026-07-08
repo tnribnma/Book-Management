@@ -19,7 +19,7 @@ type User struct {
 }
 
 type BookRequest struct {
-	Title         string `json:"title"`
-	Author        string `json:"author"`
-	PublishedYear int    `json:"published_year"`
+	Title         string `json:"title" validate:"required,min=1,max=200"`
+	Author        string `json:"author" validate:"required,min=1,max=100"`
+	PublishedYear int    `json:"published_year" validate:"omitempty,min=1000,max=2026"`
 }

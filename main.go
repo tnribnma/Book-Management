@@ -40,14 +40,16 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /health", handlers.HealthCheck)
+	
 	mux.HandleFunc("POST /users/register", authHandler.Register)
 	mux.HandleFunc("POST /auth/login", authHandler.Login)
 
-	mux.Handle("GET /books", middleware.Auth(bookHandler.ListBooks))
-	mux.Handle("POST /books", middleware.Auth(bookHandler.CreateBook))
-	mux.Handle("GET /books/{id}", middleware.Auth(bookHandler.GetBook))
-	mux.Handle("PUT /books/{id}", middleware.Auth(bookHandler.UpdateBook))
-	mux.Handle("DELETE /books/{id}", middleware.Auth(bookHandler.DeleteBook))
+	mux.Handle("GET /books", middleware.Auth(middleware.CORS(bookHandler.ListBooks)))
+	mux.Handle("POST /books", middleware.Auth(middleware.CORS(bookHandler.CreateBook)))
+	mux.Handle("GET /books/{id}", middleware.Auth(middleware.CORS(bookHandler.GetBook)))
+	mux.Handle("PUT /books/{id}", middleware.Auth(middleware.CORS(bookHandler.UpdateBook)))
+	mux.Handle("DELETE /books/{id}", middleware.Auth(middleware.CORS(bookHandler.DeleteBook)))
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
