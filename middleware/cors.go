@@ -12,6 +12,7 @@ func CORS(next http.HandlerFunc) http.HandlerFunc {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	}
 }

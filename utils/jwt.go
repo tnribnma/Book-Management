@@ -6,30 +6,44 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret string
+var jwtSecret []byte
+
+type Claims struct {
+	UserID int64  `json:"user_id"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
 
 func SetJWTSecret(secret string) {
-	jwtSecret = secret
+	jwtSecret = []byte(secret)
 }
 
-func CreateToken(userID int64) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+func CreateToken(userID int64, role string) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		Role:   role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(jwtSecret))
+	return token.SignedString(jwtSecret)
 }
 
-func ParseToken(tokenStr string) (int64, error) {
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
+func ValidateToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
 	})
 
-	if err != nil || !token.Valid {
-		return 0, err
+	if err != nil {
+		return nil, err
 	}
 
-	claims := token.Claims.(jwt.MapClaims)
-	return int64(claims["user_id"].(float64)), nil
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, jwt.ErrSignatureInvalid
 }

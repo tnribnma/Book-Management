@@ -5,83 +5,52 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"book-management/config"
-	"book-management/utils"
+	"book-management/models"
+	"book-management/repository"
+	"book-management/service"
 )
 
 type AuthHandler struct {
-	DB  *sql.DB
-	JWT *config.JWTConfig
+	userService *service.UserService
 }
 
-func NewAuthHandler(db *sql.DB, jwt *config.JWTConfig) *AuthHandler {
-	return &AuthHandler{DB: db, JWT: jwt}
-}
-
-type authRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+func NewAuthHandler(db *sql.DB) *AuthHandler {
+	return &AuthHandler{
+		userService: service.NewUserService(repository.NewUserRepository(db)),
+	}
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req authRequest
+	var req models.UserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	hash, err := utils.HashPassword(req.Password)
+	userID, err := h.userService.Register(r.Context(), req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to hash password")
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	var id int64
-	err = h.DB.QueryRow(
-		`INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id`,
-		req.Email, hash,
-	).Scan(&id)
-
-	if err != nil {
-		Error(w, http.StatusBadRequest, "email already exists")
-		return
-	}
-
-	JSON(w, http.StatusCreated, map[string]any{"id": id, "email": req.Email})
+	JSON(w, http.StatusCreated, map[string]any{"id": userID, "email": req.Email})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req authRequest
+	var req models.UserLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	var user struct {
-		ID           int64
-		PasswordHash string
-	}
-
-	err := h.DB.QueryRow(
-		`SELECT id, password_hash FROM users WHERE email = $1`,
-		req.Email,
-	).Scan(&user.ID, &user.PasswordHash)
-
+	token, user, err := h.userService.Login(r.Context(), req)
 	if err != nil {
 		Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
-	if err := utils.CheckPassword(user.PasswordHash, req.Password); err != nil {
-		Error(w, http.StatusUnauthorized, "invalid credentials")
-		return
-	}
-
-	token, err := utils.CreateToken(user.ID)
-	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to generate token")
-		return
-	}
-
-	JSON(w, http.StatusOK, map[string]any{"token": token})
+	JSON(w, http.StatusOK, map[string]any{
+		"token": token,
+		"user":  user,
+	})
 }

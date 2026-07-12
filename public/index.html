@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book-Management Console</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <span>Book-Management</span>
+  </div>
+  <div class="session" id="sessionInfo">
+    <span id="userLabel">not signed in</span>
+    <button id="logoutBtn" class="btn ghost hidden">log out</button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="auth">Auth</button>
+  <button class="tab-btn" data-tab="books">Books</button>
+  <button class="tab-btn" data-tab="categories">Categories</button>
+  <button class="tab-btn" data-tab="borrowing">Borrowing</button>
+  <button class="tab-btn" data-tab="profile">Profile</button>
+  <button class="tab-btn" data-tab="admin">Admin</button>
+  <button class="tab-btn" data-tab="reports">Reports</button>
+  <button class="tab-btn" data-tab="log">Log</button>
+</nav>
+
+<main>
+
+  <section class="panel active" id="tab-auth">
+    <div class="grid-2">
+      <div class="card">
+        <h2>Register</h2>
+        <form id="registerForm">
+          <label>Username <input name="username" required></label>
+          <label>Email <input name="email" type="email" required></label>
+          <label>Password <input name="password" type="password" required></label>
+          <button class="btn primary" type="submit">Create account</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <label>Email <input name="email" type="email" required></label>
+          <label>Password <input name="password" type="password" required></label>
+          <button class="btn primary" type="submit">Log in</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <h2>API base URL</h2>
+      <label>Backend origin
+        <input id="apiBaseInput" value="http://localhost:8080">
+      </label>
+      <button class="btn" id="saveBaseBtn">Save</button>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-books">
+    <div class="card">
+      <h2>Create book <span class="tag">librarian / admin</span></h2>
+      <form id="createBookForm" class="grid-3">
+        <label>Title <input name="title" required></label>
+        <label>Author <input name="author" required></label>
+        <label>ISBN <input name="isbn"></label>
+        <label>Category ID <input name="category_id" type="number"></label>
+        <label>Copies <input name="total_copies" type="number" value="1"></label>
+        <div class="form-actions"><button class="btn primary" type="submit">Add book</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Books</h2>
+        <div class="inline-actions">
+          <input id="bookSearch" placeholder="filter title / id...">
+          <button class="btn" id="refreshBooksBtn">Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="booksTable">
+        <thead><tr><th>ID</th><th>Title</th><th>Author</th><th>ISBN</th><th>Copies</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-categories">
+    <div class="card">
+      <h2>Create category <span class="tag">librarian / admin</span></h2>
+      <form id="createCategoryForm" class="grid-2">
+        <label>Name <input name="name" required></label>
+        <label>Description <input name="description"></label>
+        <div class="form-actions"><button class="btn primary" type="submit">Add category</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Categories</h2><button class="btn" id="refreshCategoriesBtn">Refresh</button></div>
+      <div class="table-wrap"><table id="categoriesTable">
+        <thead><tr><th>ID</th><th>Name</th><th>Description</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-borrowing">
+    <div class="grid-3">
+      <div class="card">
+        <h2>Borrow</h2>
+        <form id="borrowForm">
+          <label>Book ID <input name="book_id" type="number" required></label>
+          <button class="btn primary" type="submit">Borrow</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Return</h2>
+        <form id="returnForm">
+          <label>Borrow ID <input name="borrow_id" type="number" required></label>
+          <button class="btn primary" type="submit">Return</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Reserve</h2>
+        <form id="reserveForm">
+          <label>Book ID <input name="book_id" type="number" required></label>
+          <button class="btn primary" type="submit">Reserve</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>My borrowings</h2><button class="btn" id="refreshBorrowingsBtn">Refresh</button></div>
+      <div class="table-wrap"><table id="borrowingsTable">
+        <thead><tr><th>ID</th><th>Book</th><th>Borrowed</th><th>Due</th><th>Returned</th><th>Fine</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-profile">
+    <div class="card">
+      <div class="card-head"><h2>Profile</h2><button class="btn" id="refreshProfileBtn">Refresh</button></div>
+      <pre id="profileOutput" class="output">no data loaded</pre>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-admin">
+    <div class="card">
+      <div class="card-head"><h2>All users <span class="tag">admin</span></h2><button class="btn" id="refreshUsersBtn">Refresh</button></div>
+      <div class="table-wrap"><table id="usersTable">
+        <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-reports">
+    <div class="card">
+      <div class="card-head"><h2>Dashboard <span class="tag">admin / librarian</span></h2><button class="btn" id="refreshDashboardBtn">Refresh</button></div>
+      <pre id="dashboardOutput" class="output">no data loaded</pre>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-log">
+    <div class="card">
+      <div class="card-head"><h2>Request log</h2><button class="btn" id="clearLogBtn">Clear</button></div>
+      <pre id="requestLog" class="output log"></pre>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
