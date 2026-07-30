@@ -12,6 +12,8 @@ import (
 	"book-management/config"
 	"book-management/handlers"
 	"book-management/middleware"
+	"book-management/repository"
+	"book-management/service"
 	"book-management/utils"
 	"book-management/validators"
 
@@ -38,72 +40,137 @@ func main() {
 	}
 	defer db.Close()
 
-	authHandler := handlers.NewAuthHandler(db)
-	bookHandler := handlers.NewBookHandler(db)
-	userHandler := handlers.NewUserHandler(db)
-	categoryHandler := handlers.NewCategoryHandler(db)
-	borrowingHandler := handlers.NewBorrowingHandler(db)
-	reportHandler := handlers.NewReportHandler(db)
-	reservationHandler := handlers.NewReservationHandler(db)
+	userRepo := repository.NewUserRepository(db)
+	bookRepo := repository.NewBookRepository(db)
+	categoryRepo := repository.NewCategoryRepository(db)
+	borrowingRepo := repository.NewBorrowingRepository(db)
+	reservationRepo := repository.NewReservationRepository(db)
+	reportRepo := repository.NewReportRepository(db)
+
+	authService := service.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo)
+	bookService := service.NewBookService(bookRepo)
+	categoryService := service.NewCategoryService(categoryRepo, bookRepo)
+	borrowingService := service.NewBorrowingService(borrowingRepo, bookRepo)
+	reservationService := service.NewReservationService(reservationRepo, bookRepo)
+	reportService := service.NewReportService(reportRepo, bookRepo, borrowingRepo)
+
+	authHandler := handlers.NewAuthHandler(authService)
+	bookHandler := handlers.NewBookHandler(bookService)
+	userHandler := handlers.NewUserHandler(userService)
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	borrowingHandler := handlers.NewBorrowingHandler(borrowingService)
+	reservationHandler := handlers.NewReservationHandler(reservationService)
+	reportHandler := handlers.NewReportHandler(reportService)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Book Management API is running"))
+	})
+	mux.Handle("GET /health", http.HandlerFunc(handlers.HealthCheck))
+	mux.Handle("POST /users/register", http.HandlerFunc(authHandler.Register))
+	mux.Handle("POST /auth/login", http.HandlerFunc(authHandler.Login))
 
-	mux.HandleFunc("GET /health", handlers.HealthCheck)
-	mux.HandleFunc("POST /users/register", authHandler.Register)
-	mux.HandleFunc("POST /auth/login", authHandler.Login)
+	mux.Handle("GET /books", middleware.Auth(http.HandlerFunc(bookHandler.ListBooks)))
+	mux.Handle("GET /books/{id}", middleware.Auth(http.HandlerFunc(bookHandler.GetBook)))
 
-	mux.Handle("GET /books", middleware.Auth(middleware.CORS(bookHandler.ListBooks)))
-	mux.Handle("GET /books/{id}", middleware.Auth(middleware.CORS(bookHandler.GetBook)))
-	mux.Handle("POST /books", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("librarian", "admin")(bookHandler.CreateBook),
+	mux.Handle("POST /books",
+		middleware.Auth(
+			middleware.Role("librarian", "admin")(
+				http.HandlerFunc(bookHandler.CreateBook),
+			),
 		),
-	))
-	mux.Handle("PUT /books/{id}", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("librarian", "admin")(bookHandler.UpdateBook),
+	)
+
+	mux.Handle("PUT /books/{id}",
+		middleware.Auth(
+			middleware.Role("librarian", "admin")(
+				http.HandlerFunc(bookHandler.UpdateBook),
+			),
 		),
-	))
-	mux.Handle("DELETE /books/{id}", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("admin")(bookHandler.DeleteBook),
+	)
+
+	mux.Handle("DELETE /books/{id}",
+		middleware.Auth(
+			middleware.Role("admin")(
+				http.HandlerFunc(bookHandler.DeleteBook),
+			),
 		),
-	))
+	)
 
-	mux.Handle("GET /categories", middleware.Auth(middleware.CORS(categoryHandler.List)))
-	mux.Handle("POST /categories", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("librarian", "admin")(categoryHandler.Create),
+	mux.Handle("GET /categories",
+		middleware.Auth(http.HandlerFunc(categoryHandler.List)),
+	)
+
+	mux.Handle("POST /categories",
+		middleware.Auth(
+			middleware.Role("librarian", "admin")(
+				http.HandlerFunc(categoryHandler.Create),
+			),
 		),
-	))
+	)
 
-	mux.Handle("POST /borrow", middleware.Auth(middleware.CORS(borrowingHandler.IssueBook)))
-	mux.Handle("POST /return", middleware.Auth(middleware.CORS(borrowingHandler.ReturnBook)))
-	mux.Handle("GET /my-borrowings", middleware.Auth(middleware.CORS(borrowingHandler.GetMyBorrowings)))
+	mux.Handle("POST /borrow",
+		middleware.Auth(http.HandlerFunc(borrowingHandler.IssueBook)),
+	)
 
-	mux.Handle("GET /profile", middleware.Auth(middleware.CORS(userHandler.GetProfile)))
+	mux.Handle("POST /return",
+		middleware.Auth(http.HandlerFunc(borrowingHandler.ReturnBook)),
+	)
 
-	mux.Handle("GET /admin/users", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("admin")(userHandler.ListUsers),
+	mux.Handle("GET /my-borrowings",
+		middleware.Auth(http.HandlerFunc(borrowingHandler.GetMyBorrowings)),
+	)
+
+	mux.Handle("POST /reserve",
+		middleware.Auth(http.HandlerFunc(reservationHandler.Create)),
+	)
+
+	mux.Handle("GET /profile",
+		middleware.Auth(http.HandlerFunc(userHandler.GetProfile)),
+	)
+
+	mux.Handle("GET /admin/users",
+		middleware.Auth(
+			middleware.Role("admin")(
+				http.HandlerFunc(userHandler.ListUsers),
+			),
 		),
-	))
+	)
 
-	mux.Handle("GET /reports/dashboard", middleware.Auth(
-		middleware.CORS(
-			middleware.Role("admin", "librarian")(reportHandler.GetDashboard),
+	mux.Handle("PUT /admin/users/{id}/role",
+		middleware.Auth(
+			middleware.Role("admin")(
+				http.HandlerFunc(userHandler.UpdateRole),
+			),
 		),
-	))
+	)
 
-	mux.Handle("POST /reserve", middleware.Auth(middleware.CORS(reservationHandler.Create)))
+	mux.Handle("GET /reports/dashboard",
+		middleware.Auth(
+			middleware.Role("admin", "librarian")(
+				http.HandlerFunc(reportHandler.GetDashboard),
+			),
+		),
+	)
+
+	mux.Handle("GET /my-reservations",
+		middleware.Auth(http.HandlerFunc(reservationHandler.GetMyReservations)),
+	)
+ 
+	mux.Handle("DELETE /reservations/{id}",
+		middleware.Auth(http.HandlerFunc(reservationHandler.Cancel)),
+	)
+ 
+	mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir("public"))))
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
-		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
+	Addr:         ":" + cfg.Server.Port,
+	Handler:      middleware.CORS(mux),
+	ReadTimeout:  15 * time.Second,
+	WriteTimeout: 15 * time.Second,
+	IdleTimeout:  60 * time.Second,
+}
 
 	go func() {
 		log.Printf("Server started on http://localhost:%s", cfg.Server.Port)

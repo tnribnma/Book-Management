@@ -1,73 +1,79 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 
 	"book-management/middleware"
-	"book-management/models"
 	"book-management/service"
-	"book-management/utils"
 )
 
 type BorrowingHandler struct {
-	service *service.BorrowingService
+	service service.BorrowingService
 }
 
-func NewBorrowingHandler(db *sql.DB) *BorrowingHandler {
-	return &BorrowingHandler{service: service.NewBorrowingService(db)}
+func NewBorrowingHandler(service service.BorrowingService) *BorrowingHandler {
+	return &BorrowingHandler{	service: service}
 }
 
 func (h *BorrowingHandler) IssueBook(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == 0 {
-		utils.Error(w, http.StatusUnauthorized, "User not authenticated")
+		Error(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	var req models.BorrowRequest
+	var req struct {
+		BookID int64 `json:"book_id"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid request")
+		Error(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
 
-	borrowing, err := h.service.Borrow(r.Context(), userID, req)
-	if err != nil {
-		utils.Error(w, http.StatusBadRequest, err.Error())
+	if err := h.service.IssueBook(r.Context(), req.BookID, userID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.JSON(w, http.StatusCreated, borrowing)
+	JSON(w, http.StatusCreated, map[string]string{"message": "Book issued successfully"})
 }
 
 func (h *BorrowingHandler) ReturnBook(w http.ResponseWriter, r *http.Request) {
-	var req models.ReturnRequest
+	userID := middleware.GetUserID(r)
+	if userID == 0 {
+		Error(w, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	var req struct {
+		BookID int64 `json:"book_id"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid request")
+		Error(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
 
-	if err := h.service.Return(r.Context(), req); err != nil {
-		utils.Error(w, http.StatusBadRequest, err.Error())
+	if err := h.service.ReturnBook(r.Context(), req.BookID, userID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, map[string]string{"message": "Book returned successfully"})
+	JSON(w, http.StatusOK, map[string]string{"message": "Book returned successfully"})
 }
 
 func (h *BorrowingHandler) GetMyBorrowings(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == 0 {
-		utils.Error(w, http.StatusUnauthorized, "User not authenticated")
+		Error(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	borrowings, err := h.service.GetUserBorrowings(r.Context(), userID)
+	borrowings, err := h.service.GetMyBorrowings(r.Context(), userID)
 	if err != nil {
-		utils.Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, borrowings)
+	JSON(w, http.StatusOK, borrowings)
 }

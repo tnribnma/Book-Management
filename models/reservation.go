@@ -7,7 +7,8 @@ type Reservation struct {
 	BookID          int64     `json:"book_id"`
 	BookTitle       string    `json:"book_title,omitempty"`
 	UserID          int64     `json:"user_id"`
-	UserEmail       string    `json:"user_email,omitempty"`
+	UserName        string    `json:"user_name,omitempty"`
 	ReservationDate time.Time `json:"reservation_date"`
 	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
 }

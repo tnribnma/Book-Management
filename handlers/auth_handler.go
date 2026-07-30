@@ -1,39 +1,47 @@
 package handlers
 
 import (
-	"database/sql"
+	"log"
 	"encoding/json"
 	"net/http"
-
 	"book-management/models"
-	"book-management/repository"
+	"book-management/utils"
 	"book-management/service"
 )
 
 type AuthHandler struct {
-	userService *service.UserService
+	userService service.UserService
 }
 
-func NewAuthHandler(db *sql.DB) *AuthHandler {
-	return &AuthHandler{
-		userService: service.NewUserService(repository.NewUserRepository(db)),
-	}
+func NewAuthHandler(userService service.UserService) *AuthHandler { 
+	return &AuthHandler{userService: userService}
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	log.Println("Register called")
+
 	var req models.UserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("Decode error:", err)
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	userID, err := h.userService.Register(r.Context(), req)
+	log.Printf("Request: %+v\n", req)
+
+	user, err := h.userService.Register(r.Context(), req.Email, req.Password, req.FullName)
 	if err != nil {
+		log.Println("Register error:", err)
 		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	JSON(w, http.StatusCreated, map[string]any{"id": userID, "email": req.Email})
+	log.Println("User created:", user.Email)
+
+	JSON(w, http.StatusCreated, map[string]any{
+		"id":    user.ID,
+		"email": user.Email,
+	})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -43,9 +51,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, user, err := h.userService.Login(r.Context(), req)
+	user, err := h.userService.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		Error(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+
+	token, err := utils.CreateToken(user.ID, user.Role)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to create token")
 		return
 	}
 

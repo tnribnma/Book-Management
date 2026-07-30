@@ -8,3 +8,21 @@ type Report struct {
 	TotalFines      float64 `json:"total_fines"`
 	MostBorrowed    string  `json:"most_borrowed,omitempty"`
 }
+
+type DashboardStats struct {
+	TotalBooks        int `json:"total_books"`
+	AvailableBooks    int `json:"available_books"`
+	BorrowedBooks     int `json:"borrowed_books"`
+	ActiveBorrowings  int `json:"active_borrowings"`
+	OverdueBorrowings int `json:"overdue_borrowings"`
+	TotalUsers        int `json:"total_users"`
+	PendingReservations int `json:"pending_reservations"`
+}
+
+type SystemSummary struct {
+	TotalBooks        int `json:"total_books"`
+	AvailableBooks    int `json:"available_books"`
+	ActiveBorrowings  int `json:"active_borrowings"`
+	OverdueBorrowings int `json:"overdue_borrowings"`
+	TotalUsers        int `json:"total_users"`
+}

@@ -67,3 +67,23 @@ INSERT INTO categories (name, description) VALUES
 ('History', 'History & Biography'),
 ('Programming', 'Computer Science & Programming')
 ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO books (title, author, isbn, category_id, quantity, available_copies, shelf, status, publisher, published_year)
+VALUES
+  ('Clean Code', 'Robert C. Martin', '9780132350884', 5, 3, 3, 'A1', 'available', 'Prentice Hall', 2008),
+  ('The Pragmatic Programmer', 'Andrew Hunt', '9780135957059', 5, 2, 2, 'A2', 'available', 'Addison-Wesley', 2019),
+  ('Sapiens', 'Yuval Noah Harari', '9780062316097', 4, 2, 2, 'B1', 'available', 'Harper', 2015),
+  ('A Brief History of Time', 'Stephen Hawking', '9780553380163', 3, 1, 1, 'B2', 'available', 'Bantam', 1998),
+  ('1984', 'George Orwell', '9780451524935', 1, 4, 4, 'C1', 'available', 'Signet', 1949)
+ON CONFLICT (isbn) DO NOTHING;
+
+INSERT INTO users (email, password_hash, full_name, role)
+VALUES (
+  'admin@library.local',
+  '$2a$10$0NXPFZ3QYuo8rAgNaNd9H.byGM3nd6i1wg7wlnE2gjSWqOyGKFpqm',
+  'System Admin',
+  'admin'
+)
+ON CONFLICT (email) DO UPDATE
+SET role = 'admin',
+    full_name = EXCLUDED.full_name;

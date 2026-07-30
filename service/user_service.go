@@ -2,72 +2,110 @@ package service
 
 import (
 	"context"
-	"errors"
-
+	"fmt"
 	"book-management/models"
 	"book-management/repository"
-	"book-management/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
-type UserService struct {
-	repo *repository.UserRepository
+type UserService interface {
+	Register(ctx context.Context, email, password, fullName string) (*models.User, error)
+	Login(ctx context.Context, email, password string) (*models.User, error)
+	GetProfile(ctx context.Context, userID int64) (*models.User, error)
+	ListUsers(ctx context.Context) ([]models.User, error)
+	UpdateUser(ctx context.Context, id int64, fullName, role string) error
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+type userService struct {
+	userRepo repository.UserRepository
 }
 
-func (s *UserService) Register(ctx context.Context, req models.UserRequest) (int64, error) {
-	hash, err := utils.HashPassword(req.Password)
+func NewUserService(userRepo repository.UserRepository) UserService {
+	return &userService{
+		userRepo: userRepo,
+	}
+}
+
+func (s *userService) Register(ctx context.Context, email, password, fullName string) (*models.User, error) {
+	if email == "" || password == "" {
+		return nil, fmt.Errorf("email and password are required")
+	}
+	if len(password) < 6 {
+		return nil, fmt.Errorf("password must be at least 6 characters")
+	}
+
+	existing, err := s.userRepo.GetByEmail(ctx, email)
+	if existing != nil {
+		return nil, fmt.Errorf("user with this email already exists")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return 0, err
+		return nil, fmt.Errorf("failed to hash password")
 	}
 
-	user := models.User{
-		Email:    req.Email,
-		FullName: req.FullName,
-		Role:     "user",
+	user := &models.User{
+		Email:        email,
+		PasswordHash: string(hashedPassword),
+		FullName:     fullName,
+		Role:         "user", 
 	}
 
-	return s.repo.Create(ctx, user, hash)
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to register user: %w", err)
+	}
+
+	user.PasswordHash = ""
+	return user, nil
 }
 
-func (s *UserService) Login(ctx context.Context, req models.UserLoginRequest) (string, models.User, error) {
-	user, passwordHash, err := s.repo.GetByEmail(ctx, req.Email)
+func (s *userService) Login(ctx context.Context, email, password string) (*models.User, error) {
+	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		return "", user, errors.New("invalid credentials")
+		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	if err := utils.CheckPassword(passwordHash, req.Password); err != nil {
-		return "", user, errors.New("invalid credentials")
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	token, err := utils.CreateToken(user.ID, user.Role)
+	user.PasswordHash = ""
+	return user, nil
+}
+
+func (s *userService) GetProfile(ctx context.Context, userID int64) (*models.User, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return "", user, err
+		return nil, err
 	}
 
-	return token, user, nil
+	user.PasswordHash = ""
+	return user, nil
 }
 
-func (s *UserService) GetProfile(ctx context.Context, userID int64) (models.UserProfile, error) {
-	user, err := s.repo.GetByID(ctx, userID)
+func (s *userService) ListUsers(ctx context.Context) ([]models.User, error) {
+	users, err := s.userRepo.List(ctx)
 	if err != nil {
-		return models.UserProfile{}, err
+		return nil, err
 	}
 
-	return models.UserProfile{User: user}, nil
-}
-
-func (s *UserService) ListUsers(ctx context.Context) ([]models.User, error) {
-	return s.repo.List(ctx)
-}
-
-func (s *UserService) UpdateRole(ctx context.Context, id int64, role string) error {
-	switch role {
-	case "user", "librarian", "admin":
-	default:
-		return errors.New("invalid role")
+	for i := range users {
+		users[i].PasswordHash = ""
 	}
-	return s.repo.UpdateRole(ctx, id, role)
+	return users, nil
+}
+
+func (s *userService) UpdateUser(ctx context.Context, id int64, fullName, role string) error {
+	if role != "" && role != "user" && role != "librarian" && role != "admin" {
+		return fmt.Errorf("invalid role")
+	}
+
+	user := &models.User{
+		ID:       id,
+		FullName: fullName,
+		Role:     role,
+	}
+
+	return s.userRepo.Update(ctx, user)
+
 }

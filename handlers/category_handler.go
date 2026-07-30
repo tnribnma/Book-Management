@@ -1,30 +1,30 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
-
-	"book-management/models"
 	"book-management/service"
 )
 
 type CategoryHandler struct {
-	service *service.CategoryService
+	service service.CategoryService
 }
 
-func NewCategoryHandler(db *sql.DB) *CategoryHandler {
-	return &CategoryHandler{service: service.NewCategoryService(db)}
+func NewCategoryHandler(service service.CategoryService) *CategoryHandler {
+	return &CategoryHandler{ service: service}
 }
 
 func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req models.Category
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		Error(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 
-	category, err := h.service.Create(r.Context(), req)
+	category, err := h.service.CreateCategory(r.Context(), req.Name, req.Description)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
@@ -34,7 +34,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	categories, err := h.service.List(r.Context())
+	categories, err := h.service.ListCategories(r.Context())
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "failed to fetch categories")
 		return

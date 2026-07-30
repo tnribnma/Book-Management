@@ -1,54 +1,53 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
+	"book-management/middleware"
 	"book-management/models"
 	"book-management/service"
-	"book-management/utils"
-	"book-management/validators" 
+	"book-management/validators"
 )
 
 type BookHandler struct {
-	service *service.BookService
+	service service.BookService
 }
 
-func NewBookHandler(db *sql.DB) *BookHandler {
-	return &BookHandler{
-		service: service.NewBookService(db),
-	}
+func NewBookHandler(service service.BookService) *BookHandler {
+	return &BookHandler{service: service}
 }
 
 func (h *BookHandler) CreateBook(w http.ResponseWriter, r *http.Request) {
 	var req models.BookRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid JSON")
+		Error(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
 	if err := validators.Validate.Struct(req); err != nil {
-		utils.Error(w, http.StatusBadRequest, "Validation failed: "+err.Error())
+		Error(w, http.StatusBadRequest, "Validation failed: "+err.Error())
 		return
 	}
 
-	book, err := h.service.Create(r.Context(), req)
+	userID := middleware.GetUserID(r)
+
+	book, err := h.service.CreateBook(r.Context(), req, userID)
 	if err != nil {
-		utils.Error(w, http.StatusBadRequest, err.Error())
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.JSON(w, http.StatusCreated, book)  
+	JSON(w, http.StatusCreated, book)
 }
 
 func (h *BookHandler) ListBooks(w http.ResponseWriter, r *http.Request) {
 	filter := models.BookFilter{
-		Search:   r.URL.Query().Get("search"),
-		Author:   r.URL.Query().Get("author"),
-		Status:   r.URL.Query().Get("status"),
+		Search: r.URL.Query().Get("search"),
+		Author: r.URL.Query().Get("author"),
+		Status: r.URL.Query().Get("status"),
 	}
 
 	categoryStr := r.URL.Query().Get("category_id")
@@ -58,83 +57,65 @@ func (h *BookHandler) ListBooks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 || limit > 100 {
-		limit = 20
-	}
-
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	offset := (page - 1) * limit
-
-	books, total, err := h.service.List(r.Context(), filter, limit, offset)
+	books, err := h.service.ListBooks(r.Context(), filter)
 	if err != nil {
-		utils.Error(w, http.StatusInternalServerError, "Failed to fetch books")
+		Error(w, http.StatusInternalServerError, "Failed to fetch books")
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, map[string]interface{}{
-		"data": books,
-		"meta": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": total,
-		},
-	})
+	JSON(w, http.StatusOK, books)
 }
 
 func (h *BookHandler) GetBook(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid book ID")
+		Error(w, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
 
-	book, err := h.service.GetByID(r.Context(), id)
+	book, err := h.service.GetBook(r.Context(), id)
 	if err != nil {
-		utils.Error(w, http.StatusNotFound, "Book not found")
+		Error(w, http.StatusNotFound, "Book not found")
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, book)
+	JSON(w, http.StatusOK, book)
 }
 
 func (h *BookHandler) UpdateBook(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid book ID")
+		Error(w, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
 
 	var req models.BookRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid request body")
+		Error(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	book, err := h.service.Update(r.Context(), id, req)
+	book, err := h.service.UpdateBook(r.Context(), id, req)
 	if err != nil {
-		utils.Error(w, http.StatusBadRequest, err.Error())
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, book)
+	JSON(w, http.StatusOK, book)
 }
 
 func (h *BookHandler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.Error(w, http.StatusBadRequest, "Invalid book ID")
+		Error(w, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), id); err != nil {
-		utils.Error(w, http.StatusBadRequest, err.Error())
+	if err := h.service.DeleteBook(r.Context(), id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -148,11 +129,12 @@ func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	books, err := h.service.Search(r.Context(), query)
+	filter := models.BookFilter{Search: query}
+	books, err := h.service.ListBooks(r.Context(), filter)
 	if err != nil {
-		utils.Error(w, http.StatusInternalServerError, "Search failed")
+		Error(w, http.StatusInternalServerError, "Search failed")
 		return
 	}
 
-	utils.JSON(w, http.StatusOK, books)
+	JSON(w, http.StatusOK, books)
 }
