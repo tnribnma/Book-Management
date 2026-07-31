@@ -98,6 +98,14 @@ func main() {
 		),
 	)
 
+	mux.Handle("POST /books/{id}/link",
+		middleware.Auth(
+			middleware.Role("librarian", "admin")(
+				http.HandlerFunc(bookHandler.AddBookLink),
+			),
+		),
+	)
+
 	mux.Handle("GET /categories",
 		middleware.Auth(http.HandlerFunc(categoryHandler.List)),
 	)
@@ -157,20 +165,20 @@ func main() {
 	mux.Handle("GET /my-reservations",
 		middleware.Auth(http.HandlerFunc(reservationHandler.GetMyReservations)),
 	)
- 
+
 	mux.Handle("DELETE /reservations/{id}",
 		middleware.Auth(http.HandlerFunc(reservationHandler.Cancel)),
 	)
- 
+
 	mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir("public"))))
 
 	srv := &http.Server{
-	Addr:         ":" + cfg.Server.Port,
-	Handler:      middleware.CORS(mux),
-	ReadTimeout:  15 * time.Second,
-	WriteTimeout: 15 * time.Second,
-	IdleTimeout:  60 * time.Second,
-}
+		Addr:         ":" + cfg.Server.Port,
+		Handler:      middleware.CORS(mux),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	go func() {
 		log.Printf("Server started on http://localhost:%s", cfg.Server.Port)

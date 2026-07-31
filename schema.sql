@@ -51,6 +51,14 @@ CREATE TABLE IF NOT EXISTS reservations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE books ADD COLUMN book_url VARCHAR(500);
+ALTER TABLE books ADD COLUMN book_type VARCHAR(10) DEFAULT 'link';
+
+ALTER TABLE books ADD CONSTRAINT book_type_check 
+  CHECK (book_type IN ('link', 'pdf', 'epub'));
+
+CREATE INDEX idx_books_book_url ON books(book_url) WHERE book_url IS NOT NULL;
+
 CREATE INDEX idx_books_title ON books(title);
 CREATE INDEX idx_books_author ON books(author);
 CREATE INDEX idx_books_isbn ON books(isbn);

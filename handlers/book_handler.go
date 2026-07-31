@@ -133,12 +133,12 @@ func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	searchType := r.URL.Query().Get("search_type") 
+	searchType := r.URL.Query().Get("search_type")
 	if searchType == "" {
 		searchType = "title"
 	}
 
-	sortType := r.URL.Query().Get("sort") 
+	sortType := r.URL.Query().Get("sort")
 	if sortType == "" {
 		sortType = "date"
 	}
@@ -166,4 +166,41 @@ func (h *BookHandler) SearchBooksLegacy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	JSON(w, http.StatusOK, books)
+}
+
+func (h *BookHandler) AddBookLink(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		Error(w, http.StatusBadRequest, "Invalid book ID")
+		return
+	}
+
+	var req struct {
+		URL  string `json:"url" validate:"required,url"`
+		Type string `json:"type" validate:"required,oneof=link pdf epub"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if err := validators.Validate.Struct(req); err != nil {
+		Error(w, http.StatusBadRequest, "Validation failed: "+err.Error())
+		return
+	}
+
+	if err := h.service.AddBookLink(r.Context(), id, req.URL, req.Type); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	book, err := h.service.GetBook(r.Context(), id)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "Failed to fetch updated book")
+		return
+	}
+
+	JSON(w, http.StatusOK, book)
 }
