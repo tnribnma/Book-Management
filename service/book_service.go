@@ -15,6 +15,8 @@ type BookService interface {
 	UpdateBook(ctx context.Context, id int64, req models.BookRequest) (*models.Book, error)
 	DeleteBook(ctx context.Context, id int64) error
 	UpdateAvailability(ctx context.Context, bookID int64, delta int) error
+	SearchBooks(ctx context.Context, query string, searchType string, sortType string) ([]models.Book, error)
+	ListBooksSorted(ctx context.Context, filter models.BookFilter, sortType string) ([]models.Book, error)
 }
 
 type bookService struct {
@@ -103,4 +105,34 @@ func (s *bookService) DeleteBook(ctx context.Context, id int64) error {
 
 func (s *bookService) UpdateAvailability(ctx context.Context, bookID int64, delta int) error {
 	return s.bookRepo.UpdateAvailability(ctx, bookID, delta)
+}
+
+func (s *bookService) SearchBooks(ctx context.Context, query string, searchType string, sortType string) ([]models.Book, error) {
+	if query == "" {
+		return []models.Book{}, nil
+	}
+
+	searcher := GetSearcher(searchType)
+
+	books, err := searcher.Search(ctx, query, s.bookRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	sorter := GetSorter(sortType)
+	sorter.Sort(books)
+
+	return books, nil
+}
+
+func (s *bookService) ListBooksSorted(ctx context.Context, filter models.BookFilter, sortType string) ([]models.Book, error) {
+	books, err := s.bookRepo.List(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	sorter := GetSorter(sortType)
+	sorter.Sort(books)
+
+	return books, nil
 }

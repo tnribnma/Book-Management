@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-
 	"book-management/middleware"
 	"book-management/models"
 	"book-management/service"
@@ -57,7 +56,12 @@ func (h *BookHandler) ListBooks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	books, err := h.service.ListBooks(r.Context(), filter)
+	sortType := r.URL.Query().Get("sort")
+	if sortType == "" {
+		sortType = "date"
+	}
+
+	books, err := h.service.ListBooksSorted(r.Context(), filter, sortType)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Failed to fetch books")
 		return
@@ -123,14 +127,39 @@ func (h *BookHandler) DeleteBook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		Error(w, http.StatusBadRequest, "query parameter required")
+		return
+	}
+
+	searchType := r.URL.Query().Get("search_type") 
+	if searchType == "" {
+		searchType = "title"
+	}
+
+	sortType := r.URL.Query().Get("sort") 
+	if sortType == "" {
+		sortType = "date"
+	}
+
+	books, err := h.service.SearchBooks(r.Context(), query, searchType, sortType)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "Search failed: "+err.Error())
+		return
+	}
+
+	JSON(w, http.StatusOK, books)
+}
+
+func (h *BookHandler) SearchBooksLegacy(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		h.ListBooks(w, r)
 		return
 	}
 
-	filter := models.BookFilter{Search: query}
-	books, err := h.service.ListBooks(r.Context(), filter)
+	books, err := h.service.SearchBooks(r.Context(), query, "title", "date")
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Search failed")
 		return
