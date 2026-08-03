@@ -51,6 +51,23 @@ CREATE TABLE IF NOT EXISTS reservations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE books ADD COLUMN IF NOT EXISTS book_url VARCHAR(500);
+ALTER TABLE books ADD COLUMN IF NOT EXISTS book_type VARCHAR(10) DEFAULT 'link';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'book_type_check'
+  ) THEN
+    ALTER TABLE books ADD CONSTRAINT book_type_check
+      CHECK (book_type IN ('link', 'pdf', 'epub'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_books_book_url ON books(book_url) WHERE book_url IS NOT NULL;
+
+CREATE INDEX idx_books_book_url ON books(book_url) WHERE book_url IS NOT NULL;
+
 CREATE INDEX idx_books_title ON books(title);
 CREATE INDEX idx_books_author ON books(author);
 CREATE INDEX idx_books_isbn ON books(isbn);

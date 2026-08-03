@@ -16,6 +16,8 @@ type Book struct {
 	AvailableCopies int       `json:"available_copies"`
 	Shelf           string    `json:"shelf,omitempty"`
 	Status          string    `json:"status"`
+	BookURL         string    `json:"book_url,omitempty"`
+	BookType        string    `json:"book_type,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 
@@ -29,6 +31,8 @@ type BookRequest struct {
 	PublishedYear int     `json:"published_year,omitempty" validate:"omitempty,min=1000,max=2100"`
 	Quantity      int     `json:"quantity" validate:"required,min=1"`
 	Shelf         string  `json:"shelf,omitempty" validate:"omitempty,max=50"`
+	BookURL       string  `json:"book_url,omitempty" validate:"omitempty,url"`
+	BookType      string  `json:"book_type,omitempty" validate:"omitempty,oneof=link pdf epub"`
 }
 
 type BookFilter struct {

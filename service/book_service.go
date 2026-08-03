@@ -17,6 +17,7 @@ type BookService interface {
 	UpdateAvailability(ctx context.Context, bookID int64, delta int) error
 	SearchBooks(ctx context.Context, query string, searchType string, sortType string) ([]models.Book, error)
 	ListBooksSorted(ctx context.Context, filter models.BookFilter, sortType string) ([]models.Book, error)
+	AddBookLink(ctx context.Context, bookID int64, url, bookType string) error
 }
 
 type bookService struct {
@@ -46,6 +47,8 @@ func (s *bookService) CreateBook(ctx context.Context, req models.BookRequest, us
 		AvailableCopies: req.Quantity,
 		Shelf:           req.Shelf,
 		Status:          "available",
+		BookURL:         req.BookURL,
+		BookType:        req.BookType,
 	}
 
 	if err := s.bookRepo.Create(ctx, book); err != nil {
@@ -82,6 +85,8 @@ func (s *bookService) UpdateBook(ctx context.Context, id int64, req models.BookR
 	book.PublishedYear = req.PublishedYear
 	book.Quantity = req.Quantity
 	book.Shelf = req.Shelf
+	book.BookURL = req.BookURL
+	book.BookType = req.BookType
 
 	if err := s.bookRepo.Update(ctx, book); err != nil {
 		return nil, fmt.Errorf("failed to update book: %w", err)
@@ -105,6 +110,22 @@ func (s *bookService) DeleteBook(ctx context.Context, id int64) error {
 
 func (s *bookService) UpdateAvailability(ctx context.Context, bookID int64, delta int) error {
 	return s.bookRepo.UpdateAvailability(ctx, bookID, delta)
+}
+
+func (s *bookService) AddBookLink(ctx context.Context, bookID int64, url, bookType string) error {
+	if url == "" {
+		return fmt.Errorf("book URL cannot be empty")
+	}
+	if bookType == "" || (bookType != "link" && bookType != "pdf" && bookType != "epub") {
+		return fmt.Errorf("invalid book type, must be: link, pdf, or epub")
+	}
+
+	_, err := s.bookRepo.GetByID(ctx, bookID)
+	if err != nil {
+		return err
+	}
+
+	return s.bookRepo.UpdateBookLink(ctx, bookID, url, bookType)
 }
 
 func (s *bookService) SearchBooks(ctx context.Context, query string, searchType string, sortType string) ([]models.Book, error) {
